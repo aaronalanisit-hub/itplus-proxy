@@ -1,0 +1,108 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>IT+ — Chat · φ-Field</title>
+<style>
+:root{--bg:#0b0f14;--ink:#d9e1ea;--muted:#9aa7b6;--line:#18202b;--pane:rgba(13,17,23,.78);--pane-strong:rgba(13,17,23,.88);--accent:#00CED1;--bubble-user:#341C25;--bubble-bot:#2E2A1C}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,system-ui,Segoe UI,Roboto,Inter,Helvetica,Arial}
+#bg{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;background:#05080d}
+.top-bar{position:fixed;top:0;left:0;right:0;height:40px;z-index:3;backdrop-filter:blur(4px);background:rgba(13,17,23,.75);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 14px}
+.file-btn{padding:0;font-size:20px;background:0 0;border:0;color:var(--ink);cursor:pointer;line-height:1;transition:color .15s,transform .15s,opacity .15s}
+.pane{position:fixed;top:40px;bottom:0;left:0;right:0;z-index:1;display:flex;justify-content:center;pointer-events:none}
+.chatbox{width:min(980px,100%);height:100%;display:flex;flex-direction:column;padding:0 12px 94px;pointer-events:auto}
+.stream{flex:1;overflow:auto;padding:10px 6px}
+.row{display:flex;gap:10px;margin:8px 0}.row.user{justify-content:flex-end}
+.row.emerge{opacity:0;transform:translateY(8px);transition:opacity .5s ease-out,transform .5s ease-out}
+.row.emerge.active{opacity:1;transform:translateY(0)}
+.bubble{max-width:38%;padding:12px 14px;border-radius:20px;border:none;box-shadow:0 1px 0 rgba(0,0,0,.2);color:var(--ink)}
+.bubble.user{background:var(--bubble-user);color:#fff}
+.bubble.bot{background:var(--bubble-bot)}
+.meta{color:var(--muted);font-size:12px;margin-top:6px}
+.controls{position:fixed;left:0;right:0;bottom:0;z-index:3;background:linear-gradient(180deg,rgba(8,12,18,0),var(--pane));border-top:1px solid var(--line)}
+.inputbar{max-width:980px;margin:0 auto;padding:10px 12px;display:flex;gap:8px;align-items:center}
+.inputbar input[type=text]{flex:1;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0a1018;color:var(--ink)}
+.btn{padding:10px 14px;border:1px solid var(--line);background:#121a26;color:var(--ink);border-radius:10px}.btn:active{transform:translateY(1px)}
+a{color:var(--accent);text-decoration:none;word-break:break-all}
+.modal{position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.75);display:none;justify-content:center;align-items:center;backdrop-filter:blur(4px)}
+.modal.open{display:flex}
+.modal-content{background:var(--pane-strong);border-radius:12px;width:90%;max-width:500px;height:80%;display:flex;flex-direction:column;box-shadow:0 4px 30px rgba(0,0,0,.5);border:1px solid var(--line)}
+.modal-header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line)}
+.modal-close-btn{background:0 0;border:0;color:var(--ink);font-size:24px;cursor:pointer;line-height:1}
+.modal-list{flex:1;overflow:auto;padding:10px}
+.file-item{padding:12px;margin-bottom:8px;background:rgba(46,42,28,.4);border-radius:8px;border-left:3px solid var(--accent);word-wrap:break-word;font-size:14px}
+.file-item-time{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+@media (max-width:520px){.bubble{max-width:86%}.modal-content{width:100%;height:100%;border-radius:0}}
+</style>
+</head><body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="top-bar">
+  <button id="file-btn" class="file-btn" title="Drop a message here to file it">📁</button>
+  <button id="files-btn" class="file-btn" title="Open filed items">🗄️</button>
+</div>
+<div class="pane"><div class="chatbox"><div id="stream" class="stream" aria-live="polite"></div></div></div>
+<div class="controls"><form id="form" class="inputbar" autocomplete="off">
+  <input id="input" type="text" placeholder="Tag, you're IT"/><button class="btn" id="send" type="submit">Send</button>
+</form></div>
+<div id="files-modal" class="modal" aria-hidden="true">
+  <div class="modal-content" role="dialog" aria-modal="true" aria-label="Filed items">
+    <div class="modal-header"><div class="title">🗄️ Filed Items (<span id="file-count">0</span>)</div>
+      <button id="modal-close-btn" class="modal-close-btn" aria-label="Close">×</button></div>
+    <div id="modal-list" class="modal-list"></div>
+  </div>
+</div>
+<script>
+/* φ–FIELD BG */
+(()=>{const T=Math.PI*2,c=document.getElementById('bg'),x=c.getContext('2d');let W=0,H=0,D=1,t=0,run=1;const s={CS:.987,TSI:.10,novelty:.20,presence:.82};function fit(){D=Math.max(1,Math.min(2,window.devicePixelRatio||1));W=c.clientWidth=innerWidth;H=c.clientHeight=innerHeight;c.width=Math.round(W*D);c.height=Math.round(H*D);x.setTransform(D,0,0,D,0,0)}addEventListener('resize',fit,{passive:!0});fit();
+const C=(v,a,b)=>Math.max(a,Math.min(b,v)),L=(a,b,u)=>a+(b-a)*u,E=u=>u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2,GA=CS=>{const g=Math.PI*(3-Math.sqrt(5)),d=(1-CS)*.02;return g*(1+d*Math.sin(t*.25))},R=(seed=1234567)=>{let s=seed>>>0;return()=>((s=(s*1664525+1013904223)>>>0)/4294967296)};
+function draw(){const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#05080d');g.addColorStop(1,'#0a0f16');x.fillStyle=g;x.fillRect(0,0,W,H);
+  const cx=W*.5,cy=H*.52,maxR=Math.min(W,H)*.49,CS=C(s.CS,.7,1),TSI=C(s.TSI,0,1),nv=C(s.novelty,0,1),pr=C(s.presence,0,1);
+  const N=Math.floor(L(600,3200,E(pr))),ang=GA(CS),base=L(2.2,6,CS),jit=L(0,1,TSI),spin=nv*.8,breath=1+.045*Math.sin(t*.5),rand=R(123456789^(N<<1));
+  x.save();x.translate(cx,cy);
+  for(let i=0;i<N;i++){const a=i*ang+t*spin,r=Math.sqrt(i)*base*breath;let px=Math.cos(a)*r,py=Math.sin(a)*r;
+    px+=(rand()-.5)*jit*(.6+.6*Math.sin(i*.017+t*.3));py+=(rand()-.5)*jit*(.6+.6*Math.cos(i*.013-t*.25));
+    const scale=maxR/(Math.sqrt(N)*5.8),x0=px*scale,y0=py*scale,sz=L(1.2,2.8,CS)*(1-.5*TSI),p=i/N,h=(210+90*p+120*nv+26*Math.sin(t*.28))%360,sa=Math.round(L(42,68,CS)),lu=Math.round(L(34,62,1-TSI));
+    x.fillStyle=`hsl(${h} ${sa}% ${lu}%)`;x.beginPath();x.arc(x0,y0,sz,0,T);x.fill();}
+  x.restore();}
+let last=performance.now();function loop(now){const dt=(now-last)/1e3;last=now;if(run)t+=dt;draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+window.PHYLLO={update(m={}){if('CS'in m)s.CS=m.CS;if('TSI'in m)s.TSI=m.TSI;if('novelty'in m)s.novelty=m.novelty;if('presence'in m)s.presence=m.presence;if('running'in m)run=!!m.running;}}})();
+/* Chat + Filing (UI) */
+const $=id=>document.getElementById(id),stream=$('stream'),form=$('form'),input=$('input'),fileBtn=$('file-btn'),filesBtn=$('files-btn'),filesModal=$('files-modal'),modalCloseBtn=$('modal-close-btn'),modalList=$('modal-list'),fileCount=$('file-count');
+function linkify(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/\bhttps?:\/\/[^\s)]+/g,u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`)}
+function addMsg(role,html){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5),row=document.createElement('div');row.className='row '+(role==='user'?'user':'bot')+' emerge';row.draggable=!0;row.dataset.messageId=id;
+  const b=document.createElement('div');b.className='bubble '+(role==='user'?'user':'bot');b.innerHTML=linkify(html);
+  const meta=document.createElement('div');meta.className='meta';meta.textContent=new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  row.appendChild(b);row.appendChild(meta);stream.appendChild(row);setTimeout(()=>row.classList.add('active'),10);row.addEventListener('dragstart',onDragStart);stream.scrollTop=stream.scrollHeight}
+let filed=(()=>{try{const r=localStorage.getItem('itplus_files_v1');return r?JSON.parse(r):[]}catch(_){return[]}})();
+function saveFiled(){localStorage.setItem('itplus_files_v1',JSON.stringify(filed))}
+function onDragStart(e){const text=e.currentTarget.querySelector('.bubble').textContent;e.dataTransfer.setData('text/plain',text);e.dataTransfer.setData('message/id',e.currentTarget.dataset.messageId);e.dataTransfer.effectAllowed='move';fileBtn.style.color='var(--accent)';fileBtn.style.transform='scale(1.2)'}
+fileBtn.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';fileBtn.style.opacity=.8});
+fileBtn.addEventListener('dragleave',()=>fileBtn.style.opacity=1);
+fileBtn.addEventListener('drop',e=>{e.preventDefault();fileBtn.style.color='var(--ink)';fileBtn.style.transform='scale(1)';fileBtn.style.opacity=1;
+  const text=e.dataTransfer.getData('text/plain'),id=e.dataTransfer.getData('message/id');
+  filed.push({id,text,time:new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})});saveFiled();
+  addMsg('bot',`**Filing Complete**: Message has been tagged and filed (${filed.length} total). A new file will be created with the entry: *${text.substring(0,60).trim()}...*`);
+  const row=document.querySelector('[data-message-id="'+id+'"]');if(row)row.remove();
+});
+addEventListener('dragend',()=>{fileBtn.style.color='var(--ink)';fileBtn.style.transform='scale(1)';fileBtn.style.opacity=1});
+function openFiles(){modalList.innerHTML='';fileCount.textContent=filed.length;
+  if(!filed.length){modalList.innerHTML=`<div style="text-align:center;padding:20px;color:var(--muted);">No items filed yet. Drag a message onto the 📁 icon to start filing.</div>`}
+  else{filed.slice().reverse().forEach(it=>{const d=document.createElement('div');d.className='file-item';d.innerHTML=`${linkify(it.text)}<span class="file-item-time">${it.time}</span>`;modalList.appendChild(d)});
+       addMsg('bot',`**Files Opened**: Found **${filed.length}** filed item(s). Use the '×' button or click outside to close.`)}
+  filesModal.classList.add('open');filesModal.setAttribute('aria-hidden','false')}
+filesBtn.addEventListener('click',openFiles);
+modalCloseBtn.addEventListener('click',()=>{filesModal.classList.remove('open');filesModal.setAttribute('aria-hidden','true')});
+filesModal.addEventListener('click',e=>{if(e.target.id==='files-modal'){filesModal.classList.remove('open');filesModal.setAttribute('aria-hidden','true')}});
+/* Submit → call your Replit proxy */
+form.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const txt=input.value.trim(); if(!txt) return;
+  addMsg('user',txt); input.value='';
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages:[{role:'user',content:txt}],model:'llama-3.3-70b-versatile'})});
+    const data=await r.json();
+    addMsg('bot', data.ok ? data.text : `[Engine error] ${data.error||'Unknown'}`);
+  }catch(err){ addMsg('bot', `[Network error] ${err.message}`); }
+});
+(()=>addMsg('bot','Welcome to "φ-Field". Type to talk. Drag any message onto 📁 to file; click 🗄️ to browse.'))();
+</script>
+</body></html>
